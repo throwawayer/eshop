@@ -16,7 +16,7 @@ npm start
 npm run build
 ```
 
-Will start webpack development server on ```localhost:3000``` with [hot module replacement](https://webpack.js.org/concepts/hot-module-replacement/) enabled. Port is configurable via webpack development config (./webpack/dev.config.ts).
+Will start webpack development server on ```localhost:3000``` with [hot module replacement](https://webpack.js.org/concepts/hot-module-replacement/) enabled. Port is configurable via webpack development config (./webpack/dev.config.js).
 
 # Environment variables
 
