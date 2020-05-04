@@ -1,0 +1,39 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "extends": [
+        "airbnb",
+        "airbnb-typescript",
+        "airbnb/hooks",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended",
+        "plugin:@typescript-eslint/recommended-requiring-type-checking"
+    ],
+    "plugins": ["@typescript-eslint"],
+    "parserOptions": {
+        "ecmaVersion": 2020,
+        "ecmaFeatures": { "jsx": true },
+        "project": "./tsconfig.json",
+        "tsconfigRootDir": "."
+    },
+    "env": {
+        "browser": true,
+        "es6": true
+    },
+    "rules": {
+        "indent": "off",
+        "@typescript-eslint/indent": ["off"],
+        "object-curly-newline": "off",
+        "implicit-arrow-linebreak": "off",
+        "lines-between-class-members": "off",
+        "react/jsx-curly-newline": "off"
+    },
+    "settings": {
+        "import/resolver": {
+            "node": {
+                "extensions": [".js", ".jsx", ".ts", ".tsx"],
+                "paths": ["src"]
+            },
+            "babel-module": {}
+        }
+    }
+}
