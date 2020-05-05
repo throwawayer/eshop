@@ -9,7 +9,7 @@ import {
   LAST_ORDER_ID,
 } from 'consts/storage';
 import { Book } from 'models/Book';
-import getRandomNumber from 'utils/helpers';
+import { getRandomNumber } from 'utils/helpers';
 import { User, Role } from 'models/Users';
 
 const storage: Storage = window.localStorage;
@@ -70,7 +70,7 @@ export const initStorage = (): void => {
   const storagedUsers: string | null = storage.getItem(USERS);
   if (storagedUsers === null || JSON.parse(storagedUsers).length === 0) {
     const clients: Array<User> = [];
-    for (let i = 0; i < getRandomNumber(1, 5); i += 1) {
+    for (let i = 0; i < getRandomNumber(2, 5); i += 1) {
       clients.push({
         id: i + 2,
         name: names[getRandomNumber(0, names.length - 1)],

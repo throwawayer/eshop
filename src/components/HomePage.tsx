@@ -10,6 +10,7 @@ import {
   TableCell,
   TableBody,
   Button,
+  Snackbar,
 } from '@material-ui/core';
 import Add from '@material-ui/icons/Add';
 import Close from '@material-ui/icons/Close';
@@ -23,6 +24,8 @@ import { KeyboardDatePicker } from '@material-ui/pickers';
 
 import { HomePageProps } from 'models/HomePage';
 import { Role } from 'models/Users';
+import { getLocalizedDate } from 'utils/helpers';
+import { Alert, AlertTitle } from '@material-ui/lab';
 
 const HomePage = (props: HomePageProps): JSX.Element => {
   const {
@@ -32,6 +35,7 @@ const HomePage = (props: HomePageProps): JSX.Element => {
     bookToEdit,
     editBook,
     errors,
+    errorMessage,
     removeBook,
     finalizeBook,
     cancelEdit,
@@ -104,7 +108,7 @@ const HomePage = (props: HomePageProps): JSX.Element => {
               <TableCell>{book.title}</TableCell>
               <TableCell>{book.author}</TableCell>
               <TableCell>
-                {new Date(book.publishedDate).toLocaleDateString()}
+                {getLocalizedDate(new Date(book.publishedDate))}
               </TableCell>
               <TableCell>{book.quantity}</TableCell>
               <TableCell>{NonEditModeActions}</TableCell>
@@ -164,15 +168,32 @@ const HomePage = (props: HomePageProps): JSX.Element => {
                   id="quantity"
                   type="number"
                   defaultValue={`${bookToEdit.quantity}`}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>): void =>
-                    handleInputChange(e.target.value, 'quantity')
-                  }
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
+                    let parsedNumber: number | string = parseInt(
+                      e.target.value,
+                      10,
+                    );
+                    if (Number.isNaN(parsedNumber)) {
+                      parsedNumber = -1;
+                    }
+                    handleInputChange(parsedNumber, 'quantity');
+                  }}
                   onBlur={(
                     e: React.ChangeEvent<
                       HTMLInputElement | HTMLTextAreaElement
                     >,
-                  ): void => handleInputChange(e.target.value, 'quantity')}
+                  ): void => {
+                    let parsedNumber: number | string = parseInt(
+                      e.target.value,
+                      10,
+                    );
+                    if (Number.isNaN(parsedNumber)) {
+                      parsedNumber = -1;
+                    }
+                    handleInputChange(parsedNumber, 'quantity');
+                  }}
                   InputProps={{ inputProps: { min: 0 } }}
+                  error={errors.quantity}
                   required
                 />
               </TableCell>
@@ -216,6 +237,12 @@ const HomePage = (props: HomePageProps): JSX.Element => {
                   </>
                 )}
               </TableCell>
+              <Snackbar open={errorMessage !== null} autoHideDuration={6000}>
+                <Alert severity="error">
+                  <AlertTitle>An error has occured</AlertTitle>
+                  {errorMessage}
+                </Alert>
+              </Snackbar>
             </TableRow>
           );
         return tableBody;

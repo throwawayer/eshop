@@ -1,6 +1,8 @@
 import React from 'react';
 import { WithStyles } from '@material-ui/core';
 import AuthStore from 'stores/AuthStore';
+import BookStore from 'stores/BookStore';
+import OrdersStore from 'stores/OrdersStore';
 import { styles } from 'assets/jss/App';
 import { Role } from 'models/Users';
 
@@ -11,7 +13,9 @@ interface AppErrorsModel {
 
 export interface AppContainerProps extends WithStyles<typeof styles> {
   children: React.ReactNode;
-  authStore?: AuthStore; // TODO: look after
+  authStore?: AuthStore;
+  bookStore?: BookStore;
+  ordersStore?: OrdersStore;
 }
 
 export interface AppContainerState {

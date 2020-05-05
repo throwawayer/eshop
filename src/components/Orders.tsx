@@ -13,6 +13,7 @@ import {
   TableContainer,
   Button,
   Divider,
+  Snackbar,
 } from '@material-ui/core';
 import Cancel from '@material-ui/icons/Cancel';
 import Delete from '@material-ui/icons/Delete';
@@ -22,17 +23,20 @@ import Send from '@material-ui/icons/Send';
 import IconButton from '@material-ui/core/IconButton';
 import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
+import { Alert, AlertTitle } from '@material-ui/lab';
 
 import { OrdersProps, Status } from 'models/Orders';
-import { Role } from 'models/Users';
+import { getLocalizedDate } from 'utils/helpers';
 
 const Orders = (props: OrdersProps): JSX.Element => {
   const {
-    currentNewOrder,
     newOrders,
+    ordersHistory,
     classes,
     isEditMode,
     isAdmin,
+    quantityError,
+    errorMessage,
     bookToEditId,
     quantity,
     editBook,
@@ -43,8 +47,6 @@ const Orders = (props: OrdersProps): JSX.Element => {
     confirmOrder,
     sendBooks,
     handleQuantityChange,
-    currentUserRole,
-    ordersHistory,
     getUserFullname,
   } = props;
 
@@ -80,11 +82,14 @@ const Orders = (props: OrdersProps): JSX.Element => {
 
   const noNewOrdersForAdmin = isAdmin && newOrders.length === 0;
   const noOrderForClient = !isAdmin
-  && (currentNewOrder === undefined || currentNewOrder.books.length === 0);
+  && (
+      newOrders[0] === undefined
+      || newOrders[0].books.length === 0
+    );
 
   if (noNewOrdersForAdmin || noOrderForClient) {
     getShoppingCartTable = getTableWithoutNewOrders();
-  } else if (currentUserRole === Role.client) {
+  } else if (!isAdmin) {
     getShoppingCartTable = (
       <>
         <TableContainer component={Paper}>
@@ -112,7 +117,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {currentNewOrder.books.map((book) => {
+              {newOrders[0].books.map((book) => {
                 let TableCellQuantity: JSX.Element = (
                   <TableCell align="right">{book.quantity}</TableCell>
                 );
@@ -126,22 +131,37 @@ const Orders = (props: OrdersProps): JSX.Element => {
                         defaultValue={`${quantity}`}
                         onChange={(
                           e: React.ChangeEvent<HTMLInputElement>,
-                        ): void =>
-                          handleQuantityChange(parseInt(e.target.value, 10))
-                        }
+                        ): void => {
+                          let parsedNumber: number | string = parseInt(
+                            e.target.value,
+                            10,
+                          );
+                          if (Number.isNaN(parsedNumber)) {
+                            parsedNumber = -1;
+                          }
+                          handleQuantityChange(parsedNumber);
+                        }}
                         onBlur={(
                           e: React.ChangeEvent<
                             HTMLInputElement | HTMLTextAreaElement
                           >,
-                        ): void =>
-                          handleQuantityChange(parseInt(e.target.value, 10))
-                        }
+                        ): void => {
+                          let parsedNumber: number | string = parseInt(
+                            e.target.value,
+                            10,
+                          );
+                          if (Number.isNaN(parsedNumber)) {
+                            parsedNumber = -1;
+                          }
+                          handleQuantityChange(parsedNumber);
+                        }}
                         InputProps={{
                           inputProps: {
                             min: 1,
                             style: { textAlign: 'right' },
                           },
                         }}
+                        error={quantityError}
                         required
                       />
                     </TableCell>
@@ -212,6 +232,15 @@ const Orders = (props: OrdersProps): JSX.Element => {
                           <Cancel className={classes.tableActionButtonIcon} />
                         </IconButton>
                       </Tooltip>
+                      <Snackbar
+                        open={errorMessage !== null}
+                        autoHideDuration={6000}
+                      >
+                        <Alert severity="error">
+                          <AlertTitle>An error has occured</AlertTitle>
+                          {errorMessage}
+                        </Alert>
+                      </Snackbar>
                     </>
                   );
                 }
@@ -222,7 +251,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
                     <TableCell align="right">{book.author}</TableCell>
                     {TableCellQuantity}
                     <TableCell align="right">
-                      {new Date(book.publishedDate).toLocaleDateString()}
+                      {getLocalizedDate(new Date(book.publishedDate))}
                     </TableCell>
                     <TableCell align="right">{TableCellActions}</TableCell>
                   </TableRow>
@@ -234,12 +263,12 @@ const Orders = (props: OrdersProps): JSX.Element => {
                 <TableCell rowSpan={4} />
                 <TableCell rowSpan={4} />
                 <TableCell>Order number:</TableCell>
-                <TableCell align="right">{currentNewOrder.id}</TableCell>
+                <TableCell align="right">{newOrders[0].id}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Total quantity:</TableCell>
                 <TableCell align="right">
-                  {currentNewOrder.books
+                  {newOrders[0].books
                     .map((book) => book.quantity)
                     .reduce((a, b) => a + b, 0)}
                 </TableCell>
@@ -247,13 +276,13 @@ const Orders = (props: OrdersProps): JSX.Element => {
               <TableRow>
                 <TableCell>Status:</TableCell>
                 <TableCell align="right">
-                  {Status[currentNewOrder.status]}
+                  {Status[newOrders[0].status]}
                 </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell colSpan={2} align="right">
                   <Button
-                    onClick={(): void => cancelOrder(currentNewOrder.id)}
+                    onClick={(): void => cancelOrder(newOrders[0].id)}
                     color="default"
                     variant="outlined"
                   >
@@ -275,7 +304,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
         <Divider />
       </>
     );
-  } else if (currentUserRole === Role.admin) {
+  } else if (isAdmin) {
     getShoppingCartTable = (
       <TableContainer component={Paper}>
         <Table>
@@ -296,6 +325,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
               <TableCell align="left">Order number:</TableCell>
               <TableCell align="left">Book</TableCell>
               <TableCell align="right">Client</TableCell>
+              <TableCell align="right">Quantity</TableCell>
               <TableCell align="right">Date</TableCell>
               <TableCell align="right" colSpan={2}>
                 Status
@@ -341,19 +371,29 @@ const Orders = (props: OrdersProps): JSX.Element => {
                 </>
               );
 
-              let books = '';
+              let booksWithAuthor = '';
               newOrder.books.forEach((book) => {
-                books += `${book.title} (${book.author}), `;
+                booksWithAuthor += `${book.title} (${book.author}), `;
               });
-              books = books.slice(0, books.length - 2);
+              booksWithAuthor = booksWithAuthor.slice(
+                0,
+                booksWithAuthor.length - 2,
+              );
 
               return (
                 <TableRow key={newOrder.id}>
                   <TableCell align="left">{newOrder.id}</TableCell>
-                  <TableCell align="left">{books}</TableCell>
-                  <TableCell align="right">{getUserFullname(newOrder.clientId)}</TableCell>
+                  <TableCell align="left">{booksWithAuthor}</TableCell>
                   <TableCell align="right">
-                    {new Date(newOrder.date).toLocaleDateString()}
+                    {getUserFullname(newOrder.clientId)}
+                  </TableCell>
+                  <TableCell align="right">
+                    {newOrder.books
+                      .map((book) => book.quantity)
+                      .reduce((a, b) => a + b, 0)}
+                  </TableCell>
+                  <TableCell align="right">
+                    {getLocalizedDate(new Date(newOrder.date))}
                   </TableCell>
                   <TableCell align="right">{TableCellActions}</TableCell>
                 </TableRow>
@@ -366,6 +406,14 @@ const Orders = (props: OrdersProps): JSX.Element => {
   }
 
   const isOrdersHistoryPresent = ordersHistory && ordersHistory.length > 0;
+  const tableHeadSpan = isAdmin ? 6 : 5;
+
+  const tableHeadCellCustomer = isAdmin ? (
+    <TableCell align="left">Customer</TableCell>
+  ) : (
+    <></>
+  );
+
   if (isOrdersHistoryPresent) {
     getHistoryTable = (
       <Collapse in={isOrdersHistoryPresent} timeout="auto" unmountOnExit>
@@ -373,7 +421,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
           <Table aria-label="client-order-history-table">
             <TableHead>
               <TableRow>
-                <TableCell colSpan={5}>
+                <TableCell colSpan={tableHeadSpan}>
                   <Typography
                     component="h2"
                     variant="h6"
@@ -386,10 +434,10 @@ const Orders = (props: OrdersProps): JSX.Element => {
               </TableRow>
               <TableRow>
                 <TableCell align="left">Order Nr.</TableCell>
-                <TableCell align="left">Customer</TableCell>
+                {tableHeadCellCustomer}
                 <TableCell align="left">Books</TableCell>
                 <TableCell align="right">Quantity</TableCell>
-                <TableCell align="right">Published date</TableCell>
+                <TableCell align="right">Order date</TableCell>
                 <TableCell align="right">Status</TableCell>
               </TableRow>
             </TableHead>
@@ -401,10 +449,17 @@ const Orders = (props: OrdersProps): JSX.Element => {
                 });
                 books = books.slice(0, books.length - 2);
 
+                const tableBodyCellCustomer = isAdmin ? (
+                  <TableCell align="left">
+                    {getUserFullname(order.clientId)}
+                  </TableCell>
+                ) : (
+                  <></>
+                );
                 return (
                   <TableRow key={order.id}>
                     <TableCell align="left">{order.id}</TableCell>
-                    <TableCell align="left">{getUserFullname(order.clientId)}</TableCell>
+                    {tableBodyCellCustomer}
                     <TableCell align="left">{books}</TableCell>
                     <TableCell align="right">
                       {order.books
@@ -412,7 +467,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
                         .reduce((a, b) => a + b, 0)}
                     </TableCell>
                     <TableCell align="right">
-                      {new Date(order.date).toLocaleDateString()}
+                      {getLocalizedDate(new Date(order.date))}
                     </TableCell>
                     <TableCell align="right">{Status[order.status]}</TableCell>
                   </TableRow>
