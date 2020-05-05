@@ -5,6 +5,7 @@ import { getItem, setItem } from 'services/storage';
 import * as consts from 'consts/storage';
 import { OrderModel, Status } from 'models/Orders';
 import { Book } from 'models/Book';
+import { Role } from 'models/Users';
 
 type rootStore = typeof RootStore;
 
@@ -23,15 +24,20 @@ export default class OrdersStore {
     this.cancelOrder = this.cancelOrder.bind(this);
     this.confirmOrder = this.confirmOrder.bind(this);
     this.sendBooks = this.sendBooks.bind(this);
-    this.fullStorageMerge = this.fullStorageMerge.bind(this);
+    this.updateOrdersStorage = this.updateOrdersStorage.bind(this);
   }
 
-  private fullStorageMerge(clientId: number): void {
+  private updateOrdersStorage(clientId: number): void {
     const preparsedOrders = getItem(consts.ORDERS);
     if (preparsedOrders) {
-      const otherUserOrders: Array<OrderModel> = JSON.parse(
-        preparsedOrders,
-      ).filter((order: OrderModel) => order.clientId !== clientId);
+      let otherUserOrders: Array<OrderModel> = [];
+
+      if (this.rootStore.authStore.currentUserRole === Role.client) {
+        otherUserOrders = JSON.parse(preparsedOrders).filter(
+          (order: OrderModel) => order.clientId !== clientId,
+        );
+      }
+
       setItem(
         consts.ORDERS,
         JSON.stringify([...otherUserOrders, ...this.orders]),
@@ -82,7 +88,7 @@ export default class OrdersStore {
       const isBrandNewBookOrdered = this.allNewOrders.length === 0;
       const [currentNewOrder] = this.allNewOrders;
       const isTheSameOrderedAgain = !isBrandNewBookOrdered
-      && currentNewOrder.books.some((addedBook) => addedBook.id === book.id);
+        && currentNewOrder.books.some((addedBook) => addedBook.id === book.id);
 
       const orderBrandNewBook = (): void => {
         let lastOrderId: string | number | null = getItem(consts.LAST_ORDER_ID);
@@ -101,7 +107,7 @@ export default class OrdersStore {
             date: new Date(Date.now()).toISOString(),
             status: Status.New,
           });
-          this.fullStorageMerge(clientId);
+          this.updateOrdersStorage(clientId);
           setItem(consts.LAST_ORDER_ID, lastOrderId.toString());
         } else {
           throw new Error("BE error: 'LAST_ORDER_ID' hasn't been defined");
@@ -122,15 +128,15 @@ export default class OrdersStore {
         });
       };
 
-      if (this.rootStore.bookStore.isBookAmountEnough(book.id, 1)) {
+      if (this.rootStore.bookStore.areThereEnoughBooks(book.id, 1)) {
         if (isBrandNewBookOrdered) {
           orderBrandNewBook();
         } else if (isTheSameOrderedAgain) {
           orderNewBookAgain();
-          this.fullStorageMerge(clientId);
+          this.updateOrdersStorage(clientId);
         } else {
           orderDifferentBook();
-          this.fullStorageMerge(clientId);
+          this.updateOrdersStorage(clientId);
         }
         this.rootStore.bookStore.changeBookQuantity(book.id, -1);
       } else {
@@ -157,10 +163,10 @@ export default class OrdersStore {
 
         this.rootStore.bookStore.changeBookQuantity(
           bookId,
-          -matchedBook.quantity,
+          matchedBook.quantity,
         );
         if (this.rootStore.authStore.currentUser) {
-          this.fullStorageMerge(this.rootStore.authStore.currentUser.id);
+          this.updateOrdersStorage(this.rootStore.authStore.currentUser.id);
         }
       } else {
         throw new Error('There is not enough books.');
@@ -171,16 +177,16 @@ export default class OrdersStore {
   }
 
   @action
-  async confirmQuantity(bookId: number, quantity: number): Promise<boolean> {
+  async confirmQuantity(bookId: number, quantity: number): Promise<void> {
     this.inProgress = true;
 
-    const finish = (): boolean => {
+    const finish = (): void => {
       const matchedBook = this.currentNewOrder.books.find(
         (book) => book.id === bookId,
       );
 
       if (
-        this.rootStore.bookStore.isBookAmountEnough(bookId, quantity)
+        this.rootStore.bookStore.areThereEnoughBooks(bookId, quantity)
         && matchedBook
       ) {
         this.rootStore.bookStore.changeBookQuantity(
@@ -189,11 +195,11 @@ export default class OrdersStore {
         );
         matchedBook.quantity = quantity;
         if (this.rootStore.authStore.currentUser) {
-          this.fullStorageMerge(this.rootStore.authStore.currentUser.id);
+          this.updateOrdersStorage(this.rootStore.authStore.currentUser.id);
         }
-        return true;
+      } else {
+        throw new Error('You have tried ordering more books than there is in the store.');
       }
-      throw new Error('An error has occured');
     };
 
     await new Promise((resolve) => setTimeout(() => resolve(), 1000));
@@ -231,7 +237,7 @@ export default class OrdersStore {
       }
 
       if (clientId !== 0) {
-        this.fullStorageMerge(clientId);
+        this.updateOrdersStorage(clientId);
       } else {
         throw new Error('Unexpected error');
       }
@@ -248,7 +254,7 @@ export default class OrdersStore {
       const { clientId } = this.currentNewOrder;
       this.currentNewOrder.date = new Date(Date.now()).toISOString();
       this.currentNewOrder.status = Status.Paid;
-      this.fullStorageMerge(clientId);
+      this.updateOrdersStorage(clientId);
     };
 
     this.proceed(resolve, 1000);
@@ -263,11 +269,8 @@ export default class OrdersStore {
       if (order) {
         const { clientId } = order;
         order.date = new Date(Date.now()).toISOString();
-        order.books.forEach((book) => {
-          this.rootStore.bookStore.changeBookQuantity(book.id, book.quantity);
-        });
         order.status = Status.Sent;
-        this.fullStorageMerge(clientId);
+        this.updateOrdersStorage(clientId);
       }
     };
 
@@ -276,7 +279,7 @@ export default class OrdersStore {
 
   @computed
   get allOrders(): Array<OrderModel> {
-    return this.orders;
+    return this.orders.slice().sort((orderA, orderB) => orderB.id - orderA.id);
   }
 
   @computed

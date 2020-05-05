@@ -55,6 +55,6 @@ export default class UsersStore {
 
   @computed
   get allUsers(): Array<User> {
-    return this.users;
+    return this.users.slice().sort((userA, userB) => userA.id - userB.id);
   }
 }
