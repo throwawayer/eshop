@@ -1,6 +1,6 @@
 import React from 'react';
 import { inject, observer } from 'mobx-react';
-import { withStyles, CircularProgress } from '@material-ui/core';
+import { withStyles, CircularProgress, capitalize } from '@material-ui/core';
 import { MaterialUiPickersDate } from '@material-ui/pickers/typings/date';
 
 import styles from 'assets/jss/HomePage';
@@ -18,6 +18,7 @@ class HomePageContainer extends React.Component<
   HomePageContainerProps,
   HomePageContainerState
 > {
+  private errorMessageHandler: NodeJS.Timeout = setTimeout(() => {}, 0);
   constructor(props: HomePageContainerProps) {
     super(props);
     this.editBook = this.editBook.bind(this);
@@ -28,6 +29,7 @@ class HomePageContainer extends React.Component<
     this.beginAddingBook = this.beginAddingBook.bind(this);
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleDateChange = this.handleDateChange.bind(this);
+    this.showErrorMessage = this.showErrorMessage.bind(this);
 
     this.state = HomePageContainer.getInitialState();
   }
@@ -45,7 +47,9 @@ class HomePageContainer extends React.Component<
       errors: {
         title: false,
         author: false,
+        quantity: false,
       },
+      errorMessage: null,
     };
   }
 
@@ -53,6 +57,18 @@ class HomePageContainer extends React.Component<
     const { bookStore, authStore, ordersStore } = this.props;
     bookStore.getAll();
     ordersStore.getAll(authStore.currentUser?.id);
+  }
+
+  componentWillUnmount(): void {
+    clearTimeout(this.errorMessageHandler);
+  }
+
+  private showErrorMessage(errorMessage: string): void {
+    this.setState({ errorMessage }, (): void => {
+      this.errorMessageHandler = setTimeout(() => {
+        this.setState({ errorMessage: null });
+      }, 6000);
+    });
   }
 
   editBook(book: Book): void {
@@ -71,19 +87,38 @@ class HomePageContainer extends React.Component<
 
   finalizeBook(): void {
     const { bookStore } = this.props;
-    const { bookToEditId, bookToEdit, errors } = this.state;
+    const { bookToEditId, bookToEdit } = this.state;
 
-    if (Object.values(errors).some((error) => error)) {
-      return;
-    }
+    const errors = {
+      title: bookToEdit.title === '',
+      author: bookToEdit.author === '',
+      quantity: bookToEdit.quantity < 1,
+    };
 
-    if (bookToEditId === -1) {
-      bookStore.addBook(bookToEdit);
-    } else {
-      bookStore.updateBook(bookToEdit);
-    }
+    this.setState({ errors }, () => {
+      let errorMessage = '';
 
-    this.setState(HomePageContainer.getInitialState());
+      Object.keys(errors).forEach((errorKey) => {
+        if (Object.getOwnPropertyDescriptor(errors, errorKey)?.value) {
+          errorMessage += `${capitalize(errorKey)}, `;
+        }
+      });
+
+      if (errorMessage !== '') {
+        errorMessage = errorMessage.slice(0, errorMessage.length - 2);
+        errorMessage = `Following fields are invalid:  ${errorMessage}`;
+        this.showErrorMessage(errorMessage);
+        return;
+      }
+
+      if (bookToEditId === -1) {
+        bookStore.addBook(bookToEdit);
+      } else {
+        bookStore.updateBook(bookToEdit);
+      }
+
+      this.setState(HomePageContainer.getInitialState());
+    });
   }
 
   cancelEdit(refreshBooks: boolean): void {
@@ -110,7 +145,7 @@ class HomePageContainer extends React.Component<
     }
   }
 
-  handleInputChange(value: string, name: string): void {
+  handleInputChange(value: string | number, name: string): void {
     this.setState(({ bookToEdit, errors }) => ({
       bookToEdit: {
         ...bookToEdit,
@@ -118,7 +153,7 @@ class HomePageContainer extends React.Component<
       },
       errors: {
         ...errors,
-        [name]: value === '',
+        [name]: value === '' || value === -1,
       },
     }));
   }
@@ -136,7 +171,7 @@ class HomePageContainer extends React.Component<
 
   render(): JSX.Element {
     const { bookStore, authStore, classes } = this.props;
-    const { bookToEditId, bookToEdit, errors } = this.state;
+    const { bookToEditId, bookToEdit, errors, errorMessage } = this.state;
     const {
       editBook,
       removeBook,
@@ -161,6 +196,7 @@ class HomePageContainer extends React.Component<
         bookToEditId={bookToEditId}
         bookToEdit={bookToEdit}
         errors={errors}
+        errorMessage={errorMessage}
         editBook={editBook}
         removeBook={removeBook}
         finalizeBook={finalizeBook}

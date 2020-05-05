@@ -3,21 +3,32 @@ import { inject, observer } from 'mobx-react';
 import { withStyles } from '@material-ui/core';
 import cx from 'classnames';
 
-import { styles } from 'assets/jss/App';
 import App from 'components/App';
 import { AppContainerProps, AppContainerState } from 'models/App';
 import { Role } from 'models/Users';
+import { styles } from 'assets/jss/App';
 
-@inject('authStore')
+@inject('authStore', 'bookStore', 'ordersStore')
 @observer
 class AppContainer extends React.Component<
   AppContainerProps,
   AppContainerState
 > {
+  private errorMessageHandler: NodeJS.Timeout = setTimeout(() => {}, 0);
   constructor(props: AppContainerProps) {
     super(props);
 
-    this.state = {
+    this.toggleDrawer = this.toggleDrawer.bind(this);
+    this.toggleDialog = this.toggleDialog.bind(this);
+    this.signIn = this.signIn.bind(this);
+    this.deauthenticate = this.deauthenticate.bind(this);
+    this.handleDialogInputChange = this.handleDialogInputChange.bind(this);
+
+    this.state = AppContainer.getInitialState();
+  }
+
+  private static getInitialState(): Readonly<AppContainerState> {
+    return {
       username: '',
       password: '',
       errors: {
@@ -28,11 +39,18 @@ class AppContainer extends React.Component<
       isDialogOpen: false,
       errorMessage: null,
     };
-    this.toggleDrawer = this.toggleDrawer.bind(this);
-    this.toggleDialog = this.toggleDialog.bind(this);
-    this.signIn = this.signIn.bind(this);
-    this.deauthenticate = this.deauthenticate.bind(this);
-    this.handleDialogInputChange = this.handleDialogInputChange.bind(this);
+  }
+
+  componentWillUnmount(): void {
+    clearTimeout(this.errorMessageHandler);
+  }
+
+  private showErrorMessage(errorMessage: string): void {
+    this.setState({ errorMessage }, (): void => {
+      this.errorMessageHandler = setTimeout(() => {
+        this.setState({ errorMessage: null });
+      }, 6000);
+    });
   }
 
   toggleDrawer(): void {
@@ -43,34 +61,44 @@ class AppContainer extends React.Component<
     this.setState(({ isDialogOpen }) => ({ isDialogOpen: !isDialogOpen }));
   }
 
-  async signIn(e: FormEvent<HTMLFormElement>): Promise<void> {
+  signIn(e: FormEvent<HTMLFormElement>): void {
     e.preventDefault();
 
-    const { authStore } = this.props;
-    const { username, password, errors } = this.state;
+    const { username, password } = this.state;
 
-    if (Object.values(errors).some((error) => error)) {
-      return;
-    }
-
-    // TODO: form validate before submit
-    try {
-      if (authStore && (await authStore.authenticate(username, password))) {
-        this.toggleDialog();
+    const errors = {
+      username: username === '',
+      password: password === '',
+    };
+    this.setState({ errors }, () => {
+      if (Object.values(errors).some((error) => error)) {
+        this.showErrorMessage('Username or password are missing.');
+        return;
       }
-    } catch (err) {
-      this.setState({ errorMessage: err.message }, (): void => {
-        setTimeout(() => {
-          this.setState({ errorMessage: null });
-        }, 6000);
-      });
-    }
+
+      const { authStore, bookStore, ordersStore } = this.props;
+      if (authStore && bookStore && ordersStore) {
+        authStore
+          .authenticate(username, password)
+          .then(() => {
+            this.setState(AppContainer.getInitialState());
+            let clientId: number | undefined;
+            if (authStore.currentUserRole === Role.client) {
+              clientId = authStore.currentUser?.id;
+            }
+            bookStore.getAll();
+            ordersStore.getAll(clientId);
+          })
+          .catch((err) => this.showErrorMessage(err.message));
+      }
+    });
   }
 
   deauthenticate(): void {
     const { authStore } = this.props;
     if (authStore) {
       authStore.deauthenticate();
+      this.setState({ username: '', password: '' });
     }
   }
 

@@ -11,6 +11,7 @@ import OrdersStore from 'stores/OrdersStore';
 interface HomePageErrorsModel {
   title: boolean;
   author: boolean;
+  quantity: boolean;
 }
 
 export interface HomePageContainerProps extends WithStyles<typeof styles> {
@@ -23,6 +24,7 @@ export interface HomePageContainerState {
   bookToEditId: number;
   bookToEdit: Book;
   errors: HomePageErrorsModel;
+  errorMessage: string | null;
 }
 
 export interface HomePageProps extends WithStyles<typeof styles> {
@@ -30,13 +32,14 @@ export interface HomePageProps extends WithStyles<typeof styles> {
   bookToEditId: number;
   bookToEdit: Book;
   errors: HomePageErrorsModel;
+  errorMessage: string | null;
   editBook: (book: Book) => void;
   removeBook: (id: number) => void;
   finalizeBook: (book: Book) => void;
   cancelEdit: (refreshBooks: boolean) => void;
   orderBook: (book: Book) => void;
   beginAddingBook: () => void;
-  handleInputChange: (value: string, name: string) => void;
+  handleInputChange: (value: string | number, name: string) => void;
   handleDateChange: (date: MaterialUiPickersDate) => void;
   currentUserRole: Role;
 }

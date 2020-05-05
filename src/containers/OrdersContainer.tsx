@@ -8,12 +8,13 @@ import { Book } from 'models/Book';
 import styles from 'assets/jss/Orders';
 import { Role } from 'models/Users';
 
-@inject('authStore', 'ordersStore', 'usersStore')
+@inject('authStore', 'ordersStore', 'bookStore', 'usersStore')
 @observer
 class OrdersContainer extends React.Component<
   OrdersContainerProps,
   OrdersContainerState
 > {
+  private errorMessageHandler: NodeJS.Timeout = setTimeout(() => {}, 0);
   constructor(props: OrdersContainerProps) {
     super(props);
 
@@ -25,22 +26,44 @@ class OrdersContainer extends React.Component<
     this.confirmOrder = this.confirmOrder.bind(this);
     this.handleQuantityChange = this.handleQuantityChange.bind(this);
     this.sendBooks = this.sendBooks.bind(this);
+    this.showErrorMessage = this.showErrorMessage.bind(this);
 
     this.state = OrdersContainer.getInitialState();
   }
 
   private static getInitialState(): Readonly<OrdersContainerState> {
-    return { isEditMode: false, bookToEditId: 0, quantity: 0 };
+    return {
+      isEditMode: false,
+      bookToEditId: 0,
+      quantity: 0,
+      quantityError: false,
+      errorMessage: null,
+    };
   }
 
   componentDidMount(): void {
-    const { ordersStore, authStore, usersStore } = this.props;
+    const { ordersStore, authStore, bookStore, usersStore } = this.props;
     usersStore.getAll();
+    bookStore.getAll();
+
     let id;
     if (authStore.currentUserRole === Role.client) {
       id = authStore.currentUser?.id;
     }
+
     ordersStore.getAll(id);
+  }
+
+  componentWillUnmount(): void {
+    clearTimeout(this.errorMessageHandler);
+  }
+
+  private showErrorMessage(errorMessage: string): void {
+    this.setState({ errorMessage }, (): void => {
+      this.errorMessageHandler = setTimeout(() => {
+        this.setState({ errorMessage: null });
+      }, 6000);
+    });
   }
 
   editBook(book: Book): void {
@@ -57,16 +80,28 @@ class OrdersContainer extends React.Component<
   }
 
   handleQuantityChange(quantity: number): void {
-    this.setState((prev) => ({ ...prev, quantity }));
+    this.setState((prev) => ({
+      ...prev,
+      quantity: quantity === -1 ? 0 : quantity,
+      quantityError: quantity === -1,
+    }));
   }
 
-  async confirmQuantity(): Promise<void> {
+  confirmQuantity(): void {
     const { ordersStore } = this.props;
-    const { bookToEditId, quantity } = this.state;
+    const { bookToEditId, quantity, quantityError } = this.state;
 
-    if (await ordersStore.confirmQuantity(bookToEditId, quantity)) {
-      this.setState(OrdersContainer.getInitialState());
-    }
+    this.setState({ quantityError: quantity < 1 }, (): void => {
+      if (quantityError) {
+        this.showErrorMessage('Please check the Quantity field');
+        return;
+      }
+
+      ordersStore
+        .confirmQuantity(bookToEditId, quantity)
+        .then(() => this.setState(OrdersContainer.getInitialState()))
+        .catch((err) => this.showErrorMessage(err.message));
+    });
   }
 
   cancelEdit(): void {
@@ -96,7 +131,13 @@ class OrdersContainer extends React.Component<
 
   render(): JSX.Element {
     const { authStore, ordersStore, usersStore, classes } = this.props;
-    const { isEditMode, bookToEditId, quantity } = this.state;
+    const {
+      isEditMode,
+      bookToEditId,
+      quantity,
+      quantityError,
+      errorMessage,
+    } = this.state;
     const {
       editBook,
       removeBook,
@@ -122,13 +163,21 @@ class OrdersContainer extends React.Component<
     const { getUserFullname } = usersStore;
     return (
       <Orders
-        currentNewOrder={ordersStore.currentNewOrder}
-        newOrders={ordersStore.allNewClientOrders}
+        newOrders={
+          isAdmin
+            ? ordersStore.allNewClientOrders
+            : [ordersStore.currentNewOrder]
+        }
+        ordersHistory={
+          isAdmin ? ordersStore.clientOrdersHistory : ordersStore.ordersHistory
+        }
         classes={classes}
         isEditMode={isEditMode}
         isAdmin={isAdmin}
+        quantityError={quantityError}
         bookToEditId={bookToEditId}
         quantity={quantity}
+        errorMessage={errorMessage}
         editBook={editBook}
         removeBook={removeBook}
         confirmQuantity={confirmQuantity}
@@ -137,10 +186,6 @@ class OrdersContainer extends React.Component<
         confirmOrder={confirmOrder}
         sendBooks={sendBooks}
         handleQuantityChange={handleQuantityChange}
-        currentUserRole={authStore.currentUserRole}
-        ordersHistory={
-          isAdmin ? ordersStore.clientOrdersHistory : ordersStore.ordersHistory
-        }
         getUserFullname={getUserFullname}
       />
     );
