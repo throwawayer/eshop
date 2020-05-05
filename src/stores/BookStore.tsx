@@ -9,11 +9,12 @@ export default class BookStore {
 
   constructor() {
     this.books = [];
+
     this.getAll = this.getAll.bind(this);
     this.addBook = this.addBook.bind(this);
     this.removeBook = this.removeBook.bind(this);
     this.updateBook = this.updateBook.bind(this);
-    this.isBookAmountEnough = this.isBookAmountEnough.bind(this);
+    this.areThereEnoughBooks = this.areThereEnoughBooks.bind(this);
   }
 
   async proceed(fn: () => void, delay: number): Promise<void> {
@@ -123,23 +124,20 @@ export default class BookStore {
     this.proceed(resolve, 1000);
   }
 
-  isBookAmountEnough(bookId: number, amount: number): boolean {
+  areThereEnoughBooks(bookId: number, amount: number): boolean {
     const matchedBookIndex = this.allBooks.findIndex(
       (book) => book.id === bookId,
     );
 
-    if (Math.sign(amount)) {
+    if (amount < 0) {
       return true;
     }
     return this.books[matchedBookIndex].quantity - amount >= 0;
   }
 
+  // slice, because pure sort mutates the array, which is anti pattern
   @computed
   get allBooks(): Array<Book> {
-    if (this.books.length === 0) {
-      this.getAll();
-    }
-
-    return this.books.sort((bookA, bookB) => bookA.id - bookB.id);
+    return this.books.slice().sort((bookA, bookB) => bookA.id - bookB.id);
   }
 }
