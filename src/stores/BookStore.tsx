@@ -138,6 +138,6 @@ export default class BookStore {
   // slice, because pure sort mutates the array, which is anti pattern
   @computed
   get allBooks(): Array<Book> {
-    return this.books.slice().sort((bookA, bookB) => bookA.id - bookB.id);
+    return this.books;
   }
 }

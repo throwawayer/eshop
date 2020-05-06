@@ -11,6 +11,7 @@ import {
   Typography,
   TableBody,
   TableContainer,
+  TableSortLabel,
   Button,
   Divider,
   Snackbar,
@@ -25,8 +26,137 @@ import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
 import { Alert, AlertTitle } from '@material-ui/lab';
 
-import { OrdersProps, Status } from 'models/Orders';
-import { getLocalizedDate } from 'utils/helpers';
+import {
+  OrderModel,
+  OrdersProps,
+  Status,
+  OrdersPageTableHeadCell,
+  TableHeadCellPropType,
+} from 'models/Orders';
+import { Book } from 'models/Book';
+import { getLocalizedDate, stableSort, getComparator } from 'utils/helpers';
+
+const clientShoppingTableHeadCells: Array<OrdersPageTableHeadCell> = [
+  {
+    orderModelProp: undefined,
+    bookProp: 'title',
+    label: 'Title',
+    align: 'left',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: undefined,
+    bookProp: 'author',
+    label: 'Author',
+    align: 'right',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: undefined,
+    bookProp: 'quantity',
+    label: 'Quantity',
+    align: 'right',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: undefined,
+    bookProp: 'publishedDate',
+    label: 'Published date',
+    align: 'right',
+    colSpan: 0,
+  },
+];
+const adminShoppingTableHeadCells: Array<OrdersPageTableHeadCell> = [
+  {
+    orderModelProp: 'id',
+    bookProp: undefined,
+    label: 'Order number:',
+    align: 'left',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: undefined,
+    bookProp: 'title',
+    label: 'Title',
+    align: 'left',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: 'clientId',
+    bookProp: undefined,
+    label: 'Client',
+    align: 'right',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: undefined,
+    bookProp: 'quantity',
+    label: 'Quantity',
+    align: 'right',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: 'date',
+    bookProp: undefined,
+    label: 'Date',
+    align: 'right',
+    colSpan: 0,
+  },
+  {
+    orderModelProp: 'status',
+    bookProp: undefined,
+    label: 'Status',
+    align: 'right',
+    colSpan: 2,
+  },
+];
+const clientOrderHistoryTableHeadCells: Array<OrdersPageTableHeadCell> = [
+  {
+    orderModelProp: 'id',
+    bookProp: undefined,
+    align: 'left',
+    colSpan: 0,
+    label: 'Order nr.',
+  },
+  {
+    orderModelProp: 'books',
+    bookProp: undefined,
+    align: 'left',
+    colSpan: 0,
+    label: 'Books',
+  },
+  {
+    orderModelProp: undefined,
+    bookProp: 'quantity',
+    align: 'right',
+    colSpan: 0,
+    label: 'Quantity',
+  },
+  {
+    orderModelProp: 'date',
+    bookProp: undefined,
+    align: 'right',
+    colSpan: 0,
+    label: 'Order date',
+  },
+  {
+    orderModelProp: 'status',
+    bookProp: undefined,
+    align: 'right',
+    colSpan: 0,
+    label: 'Status',
+  },
+];
+const adminOrderHistoryTableHeadCells: Array<OrdersPageTableHeadCell> = [
+  ...clientOrderHistoryTableHeadCells,
+];
+adminOrderHistoryTableHeadCells.splice(1, 0, {
+  orderModelProp: 'clientId',
+  bookProp: undefined,
+  align: 'left',
+  colSpan: 0,
+  label: 'Customer',
+});
 
 const Orders = (props: OrdersProps): JSX.Element => {
   const {
@@ -48,6 +178,11 @@ const Orders = (props: OrdersProps): JSX.Element => {
     sendBooks,
     handleQuantityChange,
     getUserFullname,
+    handleSort,
+    shoppingTableOrder,
+    shoppingTableOrderBy,
+    ordersHistoryTableOrder,
+    ordersHistoryTableOrderBy,
   } = props;
 
   const getTableWithoutNewOrders = (): JSX.Element => (
@@ -81,11 +216,9 @@ const Orders = (props: OrdersProps): JSX.Element => {
   let getHistoryTable: JSX.Element = <></>;
 
   const noNewOrdersForAdmin = isAdmin && newOrders.length === 0;
-  const noOrderForClient = !isAdmin
-  && (
-      newOrders[0] === undefined
-      || newOrders[0].books.length === 0
-    );
+
+  const [newOrder] = newOrders;
+  const noOrderForClient = !isAdmin && (newOrder === undefined || newOrder.books.length === 0);
 
   if (noNewOrdersForAdmin || noOrderForClient) {
     getShoppingCartTable = getTableWithoutNewOrders();
@@ -109,17 +242,82 @@ const Orders = (props: OrdersProps): JSX.Element => {
                 <TableCell align="right" />
               </TableRow>
               <TableRow>
-                <TableCell>Title</TableCell>
-                <TableCell align="right">Author</TableCell>
-                <TableCell align="right">Quantity</TableCell>
-                <TableCell align="right">Published date</TableCell>
+                {clientShoppingTableHeadCells.map((headCell) => (
+                  <TableCell
+                    key={headCell.bookProp}
+                    sortDirection={
+                      shoppingTableOrderBy === headCell.bookProp
+                        ? shoppingTableOrder
+                        : false
+                    }
+                    align={headCell.align}
+                  >
+                    <TableSortLabel
+                      active={shoppingTableOrderBy === headCell.bookProp}
+                      direction={
+                        shoppingTableOrderBy === headCell.bookProp
+                          ? shoppingTableOrder
+                          : 'asc'
+                      }
+                      onClick={(): void => handleSort(headCell.bookProp, true)}
+                    >
+                      {headCell.label}
+                      {shoppingTableOrderBy === headCell.bookProp && (
+                        <span className={classes.tableSortIconHidden}>
+                          {shoppingTableOrder === 'desc'
+                            ? 'sorted descending'
+                            : 'sorted ascending'}
+                        </span>
+                      )}
+                    </TableSortLabel>
+                  </TableCell>
+                ))}
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
             <TableBody>
-              {newOrders[0].books.map((book) => {
+              {stableSort(
+                newOrder.books,
+                getComparator(
+                  shoppingTableOrder,
+                  shoppingTableOrderBy as keyof Book,
+                ),
+              ).map((book) => {
                 let TableCellQuantity: JSX.Element = (
                   <TableCell align="right">{book.quantity}</TableCell>
+                );
+
+                let TableCellActions: JSX.Element = (
+                  <>
+                    <Tooltip
+                      id="edit-book"
+                      title="Change quantity"
+                      placement="top"
+                      classes={{ tooltip: classes.tooltip }}
+                    >
+                      <IconButton
+                        aria-label="Edit"
+                        className={classes.tableActionButton}
+                        onClick={(): void => editBook(book)}
+                      >
+                        <Edit className={classes.tableActionButtonIcon} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip
+                      id="remove-book"
+                      title={`Remove '${book.title}'`}
+                      placement="top"
+                      classes={{ tooltip: classes.tooltip }}
+                    >
+                      <IconButton
+                        aria-label="Remove"
+                        className={classes.tableActionButton}
+                        onClick={(): void => removeBook(book.id)}
+                      >
+                        <Delete className={classes.tableActionButtonIcon} />
+                      </IconButton>
+                    </Tooltip>
+                  </>
                 );
 
                 if (book.id === bookToEditId && isEditMode) {
@@ -166,42 +364,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
                       />
                     </TableCell>
                   );
-                }
 
-                let TableCellActions: JSX.Element = (
-                  <>
-                    <Tooltip
-                      id="edit-book"
-                      title="Change quantity"
-                      placement="top"
-                      classes={{ tooltip: classes.tooltip }}
-                    >
-                      <IconButton
-                        aria-label="Edit"
-                        className={classes.tableActionButton}
-                        onClick={(): void => editBook(book)}
-                      >
-                        <Edit className={classes.tableActionButtonIcon} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip
-                      id="remove-book"
-                      title={`Remove '${book.title}'`}
-                      placement="top"
-                      classes={{ tooltip: classes.tooltip }}
-                    >
-                      <IconButton
-                        aria-label="Remove"
-                        className={classes.tableActionButton}
-                        onClick={(): void => removeBook(book.id)}
-                      >
-                        <Delete className={classes.tableActionButtonIcon} />
-                      </IconButton>
-                    </Tooltip>
-                  </>
-                );
-
-                if (book.id === bookToEditId && isEditMode) {
                   TableCellActions = (
                     <>
                       <Tooltip
@@ -263,26 +426,20 @@ const Orders = (props: OrdersProps): JSX.Element => {
                 <TableCell rowSpan={4} />
                 <TableCell rowSpan={4} />
                 <TableCell>Order number:</TableCell>
-                <TableCell align="right">{newOrders[0].id}</TableCell>
+                <TableCell align="right">{newOrder.id}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Total quantity:</TableCell>
-                <TableCell align="right">
-                  {newOrders[0].books
-                    .map((book) => book.quantity)
-                    .reduce((a, b) => a + b, 0)}
-                </TableCell>
+                <TableCell align="right">{newOrder.quantity}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Status:</TableCell>
-                <TableCell align="right">
-                  {Status[newOrders[0].status]}
-                </TableCell>
+                <TableCell align="right">{Status[newOrder.status]}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell colSpan={2} align="right">
                   <Button
-                    onClick={(): void => cancelOrder(newOrders[0].id)}
+                    onClick={(): void => cancelOrder(newOrder.id)}
                     color="default"
                     variant="outlined"
                   >
@@ -322,21 +479,55 @@ const Orders = (props: OrdersProps): JSX.Element => {
               </TableCell>
             </TableRow>
             <TableRow>
-              <TableCell align="left">Order number:</TableCell>
-              <TableCell align="left">Book</TableCell>
-              <TableCell align="right">Client</TableCell>
-              <TableCell align="right">Quantity</TableCell>
-              <TableCell align="right">Date</TableCell>
-              <TableCell align="right" colSpan={2}>
-                Status
-              </TableCell>
+              {adminShoppingTableHeadCells.map((headCell) => {
+                let prop: TableHeadCellPropType = headCell.orderModelProp;
+                if (prop === undefined) {
+                  prop = headCell.bookProp;
+                }
+
+                return (
+                  <TableCell
+                    key={prop}
+                    sortDirection={
+                      shoppingTableOrderBy === prop ? shoppingTableOrder : false
+                    }
+                    colSpan={headCell.colSpan}
+                    align={headCell.align}
+                  >
+                    <TableSortLabel
+                      active={shoppingTableOrderBy === prop}
+                      direction={
+                        shoppingTableOrderBy === prop
+                          ? shoppingTableOrder
+                          : 'asc'
+                      }
+                      onClick={(): void => handleSort(prop, true)}
+                    >
+                      {headCell.label}
+                      {shoppingTableOrderBy === prop && (
+                        <span className={classes.tableSortIconHidden}>
+                          {shoppingTableOrder === 'desc'
+                            ? 'sorted descending'
+                            : 'sorted ascending'}
+                        </span>
+                      )}
+                    </TableSortLabel>
+                  </TableCell>
+                );
+              })}
             </TableRow>
           </TableHead>
           <TableBody>
-            {newOrders.map((newOrder) => {
+            {stableSort(
+              newOrders,
+              getComparator(
+                shoppingTableOrder,
+                shoppingTableOrderBy as keyof OrderModel,
+              ),
+            ).map((order) => {
               const TableCellActions: JSX.Element = (
                 <>
-                  {newOrder.status === Status.Paid && (
+                  {order.status === Status.Paid && (
                     <Tooltip
                       id="send-book"
                       title="Send books"
@@ -346,13 +537,13 @@ const Orders = (props: OrdersProps): JSX.Element => {
                       <IconButton
                         aria-label="Edit"
                         className={classes.tableActionButton}
-                        onClick={(): void => sendBooks(newOrder.id)}
+                        onClick={(): void => sendBooks(order.id)}
                       >
                         <Send className={classes.tableActionButtonIcon} />
                       </IconButton>
                     </Tooltip>
                   )}
-                  {newOrder.status === Status.New && (
+                  {order.status === Status.New && (
                     <Tooltip
                       id="cancel-book"
                       title="Cancel order"
@@ -362,7 +553,7 @@ const Orders = (props: OrdersProps): JSX.Element => {
                       <IconButton
                         aria-label="cancel"
                         className={classes.tableActionButton}
-                        onClick={(): void => cancelOrder(newOrder.id)}
+                        onClick={(): void => cancelOrder(order.id)}
                       >
                         <Cancel className={classes.tableActionButtonIcon} />
                       </IconButton>
@@ -370,30 +561,16 @@ const Orders = (props: OrdersProps): JSX.Element => {
                   )}
                 </>
               );
-
-              let booksWithAuthor = '';
-              newOrder.books.forEach((book) => {
-                booksWithAuthor += `${book.title} (${book.author}), `;
-              });
-              booksWithAuthor = booksWithAuthor.slice(
-                0,
-                booksWithAuthor.length - 2,
-              );
-
               return (
-                <TableRow key={newOrder.id}>
-                  <TableCell align="left">{newOrder.id}</TableCell>
-                  <TableCell align="left">{booksWithAuthor}</TableCell>
+                <TableRow key={order.id}>
+                  <TableCell align="left">{order.id}</TableCell>
+                  <TableCell align="left">{order.booksNames}</TableCell>
                   <TableCell align="right">
-                    {getUserFullname(newOrder.clientId)}
+                    {getUserFullname(order.clientId)}
                   </TableCell>
+                  <TableCell align="right">{order.quantity}</TableCell>
                   <TableCell align="right">
-                    {newOrder.books
-                      .map((book) => book.quantity)
-                      .reduce((a, b) => a + b, 0)}
-                  </TableCell>
-                  <TableCell align="right">
-                    {getLocalizedDate(new Date(newOrder.date))}
+                    {getLocalizedDate(new Date(order.date))}
                   </TableCell>
                   <TableCell align="right">{TableCellActions}</TableCell>
                 </TableRow>
@@ -406,22 +583,18 @@ const Orders = (props: OrdersProps): JSX.Element => {
   }
 
   const isOrdersHistoryPresent = ordersHistory && ordersHistory.length > 0;
-  const tableHeadSpan = isAdmin ? 6 : 5;
-
-  const tableHeadCellCustomer = isAdmin ? (
-    <TableCell align="left">Customer</TableCell>
-  ) : (
-    <></>
-  );
-
   if (isOrdersHistoryPresent) {
+    let tableHeadCells = clientOrderHistoryTableHeadCells;
+    if (isAdmin) {
+      tableHeadCells = adminOrderHistoryTableHeadCells;
+    }
     getHistoryTable = (
       <Collapse in={isOrdersHistoryPresent} timeout="auto" unmountOnExit>
         <TableContainer component={Paper}>
           <Table aria-label="client-order-history-table">
             <TableHead>
               <TableRow>
-                <TableCell colSpan={tableHeadSpan}>
+                <TableCell colSpan={isAdmin ? 6 : 5}>
                   <Typography
                     component="h2"
                     variant="h6"
@@ -433,46 +606,68 @@ const Orders = (props: OrdersProps): JSX.Element => {
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell align="left">Order Nr.</TableCell>
-                {tableHeadCellCustomer}
-                <TableCell align="left">Books</TableCell>
-                <TableCell align="right">Quantity</TableCell>
-                <TableCell align="right">Order date</TableCell>
-                <TableCell align="right">Status</TableCell>
+                {tableHeadCells.map((headCell) => {
+                  let prop: TableHeadCellPropType = headCell.orderModelProp;
+                  if (prop === undefined) {
+                    prop = headCell.bookProp;
+                  }
+
+                  return (
+                    <TableCell
+                      key={prop}
+                      sortDirection={
+                        ordersHistoryTableOrderBy === prop
+                          ? ordersHistoryTableOrder
+                          : false
+                      }
+                      align={headCell.align}
+                    >
+                      <TableSortLabel
+                        active={ordersHistoryTableOrderBy === prop}
+                        direction={
+                          ordersHistoryTableOrderBy === prop
+                            ? ordersHistoryTableOrder
+                            : 'asc'
+                        }
+                        onClick={(): void => handleSort(prop, false)}
+                      >
+                        {headCell.label}
+                        {ordersHistoryTableOrderBy === prop && (
+                          <span className={classes.tableSortIconHidden}>
+                            {shoppingTableOrder === 'desc'
+                              ? 'sorted descending'
+                              : 'sorted ascending'}
+                          </span>
+                        )}
+                      </TableSortLabel>
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             </TableHead>
             <TableBody>
-              {ordersHistory.map((order) => {
-                let books = '';
-                order.books.forEach((book) => {
-                  books += `${book.title} (${book.author}), `;
-                });
-                books = books.slice(0, books.length - 2);
-
-                const tableBodyCellCustomer = isAdmin ? (
-                  <TableCell align="left">
-                    {getUserFullname(order.clientId)}
+              {stableSort(
+                ordersHistory,
+                getComparator(
+                  ordersHistoryTableOrder,
+                  ordersHistoryTableOrderBy as keyof OrderModel,
+                ),
+              ).map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell align="left">{order.id}</TableCell>
+                  {isAdmin && (
+                    <TableCell align="left">
+                      {getUserFullname(order.clientId)}
+                    </TableCell>
+                  )}
+                  <TableCell align="left">{order.booksNames}</TableCell>
+                  <TableCell align="right">{order.quantity}</TableCell>
+                  <TableCell align="right">
+                    {getLocalizedDate(new Date(order.date))}
                   </TableCell>
-                ) : (
-                  <></>
-                );
-                return (
-                  <TableRow key={order.id}>
-                    <TableCell align="left">{order.id}</TableCell>
-                    {tableBodyCellCustomer}
-                    <TableCell align="left">{books}</TableCell>
-                    <TableCell align="right">
-                      {order.books
-                        .map((book) => book.quantity)
-                        .reduce((a, b) => a + b, 0)}
-                    </TableCell>
-                    <TableCell align="right">
-                      {getLocalizedDate(new Date(order.date))}
-                    </TableCell>
-                    <TableCell align="right">{Status[order.status]}</TableCell>
-                  </TableRow>
-                );
-              })}
+                  <TableCell align="right">{Status[order.status]}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </TableContainer>
