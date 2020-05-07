@@ -1,7 +1,7 @@
 {
-    "name": "newsapp",
+    "name": "eshop",
     "version": "1.0.0",
-    "description": "a simple news website",
+    "description": "a book eshop",
     "author": "Andre Sestakov",
     "license": "MIT",
     "engines": {
