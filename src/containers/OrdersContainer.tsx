@@ -3,16 +3,21 @@ import { inject, observer } from 'mobx-react';
 import { withStyles, CircularProgress, Grid } from '@material-ui/core';
 
 import Orders from 'components/Orders';
-import { OrdersContainerProps, OrdersContainerState } from 'models/Orders';
+import {
+  TableHeadCellPropType,
+  OrdersContainerProps,
+  OrdersContainerState,
+} from 'models/Orders';
 import { Book } from 'models/Book';
-import styles from 'assets/jss/Orders';
 import { Role } from 'models/Users';
+import styles from 'assets/jss/Orders';
+import { Order } from 'utils/helpers';
 
 @inject('authStore', 'ordersStore', 'bookStore', 'usersStore')
 @observer
 class OrdersContainer extends React.Component<
   OrdersContainerProps,
-  OrdersContainerState
+  Readonly<OrdersContainerState>
 > {
   private errorMessageHandler: NodeJS.Timeout = setTimeout(() => {}, 0);
   constructor(props: OrdersContainerProps) {
@@ -27,6 +32,7 @@ class OrdersContainer extends React.Component<
     this.handleQuantityChange = this.handleQuantityChange.bind(this);
     this.sendBooks = this.sendBooks.bind(this);
     this.showErrorMessage = this.showErrorMessage.bind(this);
+    this.handleSort = this.handleSort.bind(this);
 
     this.state = OrdersContainer.getInitialState();
   }
@@ -38,6 +44,10 @@ class OrdersContainer extends React.Component<
       quantity: 0,
       quantityError: false,
       errorMessage: null,
+      shoppingTableOrder: 'asc',
+      shoppingTableOrderBy: 'id',
+      ordersHistoryTableOrder: 'asc',
+      ordersHistoryTableOrderBy: 'id',
     };
   }
 
@@ -129,6 +139,45 @@ class OrdersContainer extends React.Component<
     ordersStore.sendBooks(orderId);
   }
 
+  handleSort(property: TableHeadCellPropType, isShoppingTable: boolean): void {
+    const {
+      shoppingTableOrder,
+      shoppingTableOrderBy,
+      ordersHistoryTableOrder,
+      ordersHistoryTableOrderBy,
+    } = this.state;
+
+    let shoppingOrder: Order = shoppingTableOrderBy === property && shoppingTableOrder === 'asc'
+        ? 'desc'
+        : 'asc';
+
+    let shoppingOrderBy = property;
+
+    let ordersHistoryOrder: Order = ordersHistoryTableOrder === 'asc' ? 'asc' : 'desc';
+
+    let ordersHistoryOrderBy = ordersHistoryTableOrderBy;
+
+    if (!isShoppingTable) {
+      shoppingOrder = shoppingTableOrder === 'asc' ? 'asc' : 'desc';
+
+      shoppingOrderBy = shoppingTableOrderBy;
+
+      ordersHistoryOrder = ordersHistoryTableOrderBy === property
+        && ordersHistoryTableOrder === 'asc'
+          ? 'desc'
+          : 'asc';
+
+      ordersHistoryOrderBy = property;
+    }
+
+    this.setState({
+      shoppingTableOrder: shoppingOrder,
+      shoppingTableOrderBy: shoppingOrderBy,
+      ordersHistoryTableOrder: ordersHistoryOrder,
+      ordersHistoryTableOrderBy: ordersHistoryOrderBy,
+    });
+  }
+
   render(): JSX.Element {
     const { authStore, ordersStore, usersStore, classes } = this.props;
     const {
@@ -137,6 +186,10 @@ class OrdersContainer extends React.Component<
       quantity,
       quantityError,
       errorMessage,
+      shoppingTableOrder,
+      shoppingTableOrderBy,
+      ordersHistoryTableOrder,
+      ordersHistoryTableOrderBy,
     } = this.state;
     const {
       editBook,
@@ -147,6 +200,7 @@ class OrdersContainer extends React.Component<
       cancelOrder,
       confirmOrder,
       sendBooks,
+      handleSort,
     } = this;
 
     if (ordersStore.inProgress) {
@@ -163,14 +217,8 @@ class OrdersContainer extends React.Component<
     const { getUserFullname } = usersStore;
     return (
       <Orders
-        newOrders={
-          isAdmin
-            ? ordersStore.allNewClientOrders
-            : [ordersStore.currentNewOrder]
-        }
-        ordersHistory={
-          isAdmin ? ordersStore.clientOrdersHistory : ordersStore.ordersHistory
-        }
+        newOrders={ordersStore.allNewFinalOrders}
+        ordersHistory={ordersStore.finalOrdersHistory}
         classes={classes}
         isEditMode={isEditMode}
         isAdmin={isAdmin}
@@ -187,6 +235,11 @@ class OrdersContainer extends React.Component<
         sendBooks={sendBooks}
         handleQuantityChange={handleQuantityChange}
         getUserFullname={getUserFullname}
+        handleSort={handleSort}
+        shoppingTableOrder={shoppingTableOrder}
+        shoppingTableOrderBy={shoppingTableOrderBy}
+        ordersHistoryTableOrder={ordersHistoryTableOrder}
+        ordersHistoryTableOrderBy={ordersHistoryTableOrderBy}
       />
     );
   }

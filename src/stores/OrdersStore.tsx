@@ -3,7 +3,7 @@ import { observable, action, runInAction, computed } from 'mobx';
 import RootStore from 'stores/RootStore';
 import { getItem, setItem } from 'services/storage';
 import * as consts from 'consts/storage';
-import { OrderModel, Status } from 'models/Orders';
+import { OrderModel, OrderFinalModel, Status } from 'models/Orders';
 import { Book } from 'models/Book';
 import { Role } from 'models/Users';
 
@@ -95,7 +95,7 @@ export default class OrdersStore {
         if (lastOrderId) {
           lastOrderId = parseInt(lastOrderId, 10) + 1;
 
-          this.orders.push({
+          this.allOrders.push({
             id: lastOrderId,
             books: [
               {
@@ -152,12 +152,13 @@ export default class OrdersStore {
     this.inProgress = true;
 
     const resolve = (): void => {
-      const matchedBook = this.currentNewOrder.books.find(
+      const [currentNewOrder] = this.allNewOrders;
+      const matchedBook = currentNewOrder.books.find(
         (book) => book.id === bookId,
       );
 
       if (matchedBook) {
-        this.currentNewOrder.books = this.currentNewOrder.books.filter(
+        currentNewOrder.books = currentNewOrder.books.filter(
           (book) => book.id !== bookId,
         );
 
@@ -181,7 +182,8 @@ export default class OrdersStore {
     this.inProgress = true;
 
     const finish = (): void => {
-      const matchedBook = this.currentNewOrder.books.find(
+      const [currentNewOrder] = this.allNewOrders;
+      const matchedBook = currentNewOrder.books.find(
         (book) => book.id === bookId,
       );
 
@@ -198,7 +200,9 @@ export default class OrdersStore {
           this.updateOrdersStorage(this.rootStore.authStore.currentUser.id);
         }
       } else {
-        throw new Error('You have tried ordering more books than there is in the store.');
+        throw new Error(
+          'You have tried ordering more books than there is in the store.',
+        );
       }
     };
 
@@ -228,12 +232,13 @@ export default class OrdersStore {
           clientId = order.clientId;
         }
       } else {
-        this.currentNewOrder.date = new Date(Date.now()).toISOString();
-        this.currentNewOrder.books.forEach((book) => {
+        const [currentNewOrder] = this.allNewOrders;
+        currentNewOrder.date = new Date(Date.now()).toISOString();
+        currentNewOrder.books.forEach((book) => {
           this.rootStore.bookStore.changeBookQuantity(book.id, book.quantity);
         });
-        this.currentNewOrder.status = Status.Cancelled;
-        clientId = this.currentNewOrder.clientId;
+        currentNewOrder.status = Status.Cancelled;
+        clientId = currentNewOrder.clientId;
       }
 
       if (clientId !== 0) {
@@ -251,9 +256,10 @@ export default class OrdersStore {
     this.inProgress = true;
 
     const resolve = (): void => {
-      const { clientId } = this.currentNewOrder;
-      this.currentNewOrder.date = new Date(Date.now()).toISOString();
-      this.currentNewOrder.status = Status.Paid;
+      const [currentNewOrder] = this.allNewOrders;
+      const { clientId } = currentNewOrder;
+      currentNewOrder.date = new Date(Date.now()).toISOString();
+      currentNewOrder.status = Status.Paid;
       this.updateOrdersStorage(clientId);
     };
 
@@ -279,35 +285,84 @@ export default class OrdersStore {
 
   @computed
   get allOrders(): Array<OrderModel> {
-    return this.orders.slice().sort((orderA, orderB) => orderB.id - orderA.id);
+    return this.orders;
   }
 
   @computed
   get allNewOrders(): Array<OrderModel> {
-    return this.allOrders.filter((order) => order.status === Status.New);
+    return this.allOrders.filter(
+      (order) =>
+        order.status === Status.New
+        || (this.rootStore.authStore.currentUserRole === Role.admin
+          && order.status === Status.Paid),
+    );
   }
 
   @computed
-  get allNewClientOrders(): Array<OrderModel> {
-    return this.allOrders.filter(
-      (order) => order.status === Status.New || order.status === Status.Paid,
-    );
+  get allNewFinalOrders(): Array<OrderFinalModel> {
+    return this.allNewOrders.map((order) => {
+      let booksNames = '';
+      order.books
+        .sort((bookA, bookB) => {
+          let result = 0;
+          if (bookA.title > bookB.title) {
+            result = 1;
+          } else if (bookB.title > bookA.title) {
+            result = -1;
+          }
+          return result;
+        })
+        .forEach((book) => {
+          booksNames += `${book.title} (${book.author}), `;
+        });
+      booksNames = booksNames.slice(0, booksNames.length - 2);
+      return {
+        ...order,
+        booksNames,
+        quantity: order.books
+          .map((book) => book.quantity)
+          .reduce((a, b) => a + b, 0),
+      };
+    });
   }
 
   @computed
   get ordersHistory(): Array<OrderModel> {
-    return this.allOrders.filter((order) => order.status !== Status.New);
-  }
-
-  @computed
-  get clientOrdersHistory(): Array<OrderModel> {
     return this.allOrders.filter(
-      (order) => order.status !== Status.New && order.status !== Status.Paid,
+      (order) =>
+        (this.rootStore.authStore.currentUserRole === Role.admin
+          && (order.status === Status.Cancelled
+            || order.status === Status.Sent))
+        || (this.rootStore.authStore.currentUserRole === Role.client
+          && order.status !== Status.New),
     );
   }
 
   @computed
-  get currentNewOrder(): OrderModel {
-    return this.allOrders.filter((order) => order.status === Status.New)[0];
+  get finalOrdersHistory(): Array<OrderFinalModel> {
+    return this.ordersHistory.map((order) => {
+      let booksNames = '';
+      order.books
+        .sort((bookA, bookB) => {
+          let result = 0;
+          if (bookA.title > bookB.title) {
+            result = 1;
+          } else if (bookB.title > bookA.title) {
+            result = -1;
+          }
+          return result;
+        })
+        .forEach((book) => {
+          booksNames += `${book.title} (${book.author}), `;
+        });
+      booksNames = booksNames.slice(0, booksNames.length - 2);
+      return {
+        ...order,
+        booksNames,
+        quantity: order.books
+          .map((book) => book.quantity)
+          .reduce((a, b) => a + b, 0),
+      };
+    });
   }
 }

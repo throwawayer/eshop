@@ -12,7 +12,7 @@ import { styles } from 'assets/jss/App';
 @observer
 class AppContainer extends React.Component<
   AppContainerProps,
-  AppContainerState
+  Readonly<AppContainerState>
 > {
   private errorMessageHandler: NodeJS.Timeout = setTimeout(() => {}, 0);
   constructor(props: AppContainerProps) {

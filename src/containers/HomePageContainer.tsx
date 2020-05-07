@@ -16,7 +16,7 @@ import { Role } from 'models/Users';
 @observer
 class HomePageContainer extends React.Component<
   HomePageContainerProps,
-  HomePageContainerState
+  Readonly<HomePageContainerState>
 > {
   private errorMessageHandler: NodeJS.Timeout = setTimeout(() => {}, 0);
   constructor(props: HomePageContainerProps) {
@@ -30,6 +30,7 @@ class HomePageContainer extends React.Component<
     this.handleInputChange = this.handleInputChange.bind(this);
     this.handleDateChange = this.handleDateChange.bind(this);
     this.showErrorMessage = this.showErrorMessage.bind(this);
+    this.handleSort = this.handleSort.bind(this);
 
     this.state = HomePageContainer.getInitialState();
   }
@@ -50,6 +51,8 @@ class HomePageContainer extends React.Component<
         quantity: false,
       },
       errorMessage: null,
+      order: 'asc',
+      orderBy: 'title',
     };
   }
 
@@ -169,9 +172,25 @@ class HomePageContainer extends React.Component<
     }
   }
 
+  handleSort(property: keyof Book): void {
+    const { orderBy, order } = this.state;
+    const isAsc = orderBy === property && order === 'asc';
+    this.setState({
+      order: isAsc ? 'desc' : 'asc',
+      orderBy: property,
+    });
+  }
+
   render(): JSX.Element {
     const { bookStore, authStore, classes } = this.props;
-    const { bookToEditId, bookToEdit, errors, errorMessage } = this.state;
+    const {
+      bookToEditId,
+      bookToEdit,
+      errors,
+      errorMessage,
+      order,
+      orderBy,
+    } = this.state;
     const {
       editBook,
       removeBook,
@@ -181,6 +200,7 @@ class HomePageContainer extends React.Component<
       beginAddingBook,
       handleInputChange,
       handleDateChange,
+      handleSort,
     } = this;
 
     if (bookStore.inProgress) {
@@ -205,7 +225,10 @@ class HomePageContainer extends React.Component<
         beginAddingBook={beginAddingBook}
         handleInputChange={handleInputChange}
         handleDateChange={handleDateChange}
+        handleSort={handleSort}
         currentUserRole={authStore.currentUserRole}
+        order={order}
+        orderBy={orderBy}
       />
     );
   }

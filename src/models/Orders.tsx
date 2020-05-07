@@ -5,6 +5,9 @@ import UsersStore from 'stores/UsersStore';
 import BookStore from 'stores/BookStore';
 import { Book } from 'models/Book';
 import styles from 'assets/jss/Orders';
+import { Order } from 'utils/helpers';
+
+export type TableHeadCellPropType = keyof OrderFinalModel | keyof Book | undefined;
 
 export enum Status {
   New,
@@ -16,6 +19,16 @@ export enum Status {
 export interface OrderModel {
   id: number;
   books: Array<Book>;
+  clientId: number;
+  date: string;
+  status: Status;
+}
+
+export interface OrderFinalModel {
+  id: number;
+  books: Array<Book>;
+  booksNames: string;
+  quantity: number;
   clientId: number;
   date: string;
   status: Status;
@@ -34,11 +47,15 @@ export interface OrdersContainerState {
   quantity: number;
   quantityError: boolean;
   errorMessage: string | null;
+  shoppingTableOrder: Order;
+  shoppingTableOrderBy: TableHeadCellPropType;
+  ordersHistoryTableOrder: Order;
+  ordersHistoryTableOrderBy: TableHeadCellPropType;
 }
 
 export interface OrdersProps extends WithStyles<typeof styles> {
-  newOrders: Array<OrderModel>;
-  ordersHistory: Array<OrderModel>;
+  newOrders: Array<OrderFinalModel>;
+  ordersHistory: Array<OrderFinalModel>;
   isEditMode: boolean;
   isAdmin: boolean;
   quantityError: boolean;
@@ -54,4 +71,20 @@ export interface OrdersProps extends WithStyles<typeof styles> {
   sendBooks: (orderId: number) => void;
   handleQuantityChange: (quantity: number) => void;
   getUserFullname: (userId: number) => string;
+  handleSort: (
+    property: TableHeadCellPropType,
+    isShoppingTable: boolean,
+  ) => void;
+  shoppingTableOrder: Order;
+  shoppingTableOrderBy: TableHeadCellPropType;
+  ordersHistoryTableOrder: Order;
+  ordersHistoryTableOrderBy: TableHeadCellPropType;
+}
+
+export interface OrdersPageTableHeadCell {
+  orderModelProp: keyof OrderFinalModel | undefined;
+  bookProp: keyof Book | undefined;
+  label: string;
+  align: 'left' | 'right';
+  colSpan: number;
 }

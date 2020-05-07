@@ -9,6 +9,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
   Button,
   Snackbar,
 } from '@material-ui/core';
@@ -20,12 +21,19 @@ import Edit from '@material-ui/icons/Edit';
 import IconButton from '@material-ui/core/IconButton';
 import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
+import { Alert, AlertTitle } from '@material-ui/lab';
 import { KeyboardDatePicker } from '@material-ui/pickers';
 
-import { HomePageProps } from 'models/HomePage';
+import { HomePageProps, HomePageTableHeadCell } from 'models/HomePage';
 import { Role } from 'models/Users';
-import { getLocalizedDate } from 'utils/helpers';
-import { Alert, AlertTitle } from '@material-ui/lab';
+import { getLocalizedDate, stableSort, getComparator } from 'utils/helpers';
+
+const tableHeadCells: Array<HomePageTableHeadCell> = [
+  { id: 'title', label: 'Title' },
+  { id: 'author', label: 'Author' },
+  { id: 'publishedDate', label: 'Published date' },
+  { id: 'quantity', label: 'Quantity' },
+];
 
 const HomePage = (props: HomePageProps): JSX.Element => {
   const {
@@ -43,12 +51,15 @@ const HomePage = (props: HomePageProps): JSX.Element => {
     beginAddingBook,
     handleInputChange,
     handleDateChange,
+    handleSort,
     currentUserRole,
+    order,
+    orderBy,
   } = props;
 
   const TableBodyContent: JSX.Element = (
     <>
-      {books.map((book) => {
+      {stableSort(books, getComparator(order, orderBy)).map((book) => {
         let NonEditModeActions = null;
         if (currentUserRole === Role.client) {
           NonEditModeActions = (
@@ -280,10 +291,27 @@ const HomePage = (props: HomePageProps): JSX.Element => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Title</TableCell>
-                <TableCell>Author</TableCell>
-                <TableCell>Published date</TableCell>
-                <TableCell>Quantity</TableCell>
+                {tableHeadCells.map((headCell) => (
+                  <TableCell
+                    key={headCell.id}
+                    sortDirection={orderBy === headCell.id ? order : false}
+                  >
+                    <TableSortLabel
+                      active={orderBy === headCell.id}
+                      direction={orderBy === headCell.id ? order : 'asc'}
+                      onClick={(): void => handleSort(headCell.id)}
+                    >
+                      {headCell.label}
+                      {orderBy === headCell.id && (
+                        <span className={classes.tableSortIconHidden}>
+                          {order === 'desc'
+                            ? 'sorted descending'
+                            : 'sorted ascending'}
+                        </span>
+                      )}
+                    </TableSortLabel>
+                  </TableCell>
+                ))}
                 <TableCell />
               </TableRow>
             </TableHead>
